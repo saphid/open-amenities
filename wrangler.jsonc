@@ -15,7 +15,7 @@
   "migrations": [{"tag": "v1", "new_sqlite_classes": ["Amenities"]}],
   "observability": {"enabled": false},
   "vars": {
-    "OVERPASS_URL": "https://overpass-api.de/api/interpreter",
+    "OVERPASS_URL": "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "GEOCODER_URL": "https://nominatim.openstreetmap.org/search",
     "UPSTREAM_USER_AGENT": "OpenAmenities/0.1 (https://github.com/saphid/open-amenities; contact: https://github.com/saphid/open-amenities/issues)"
   }

@@ -1,7 +1,6 @@
 # Public hosting
 
-Decision recorded 10 November 2026. The source repository is public. The hosting
-adapter targets a small, account-free, read-only pilot on Cloudflare Workers
+Decision recorded 10 November 2026. The source repository is public. The [public app](https://open-amenities.saphid.workers.dev) runs as a small, account-free, read-only pilot on Cloudflare Workers
 with one SQLite-backed Durable Object. The existing Node/SQLite server remains
 available for operators who want to run the moderation workflow.
 
@@ -52,7 +51,11 @@ npm run deploy:cloudflare
 
 `wrangler.jsonc` declares the asset directory, one Durable Object class and its
 SQLite migration. Its public User-Agent points to the project and issue tracker
-for contact. Endpoint URLs remain deployment configuration. Wrangler's local
+for contact. The deployed Overpass source is [VK Maps](https://maps.mail.ru/osm/tools/overpass/)
+(`maps.mail.ru`), listed among the [global public instances](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances).
+Nominatim supplies submitted place-name searches and OpenStreetMap supplies
+opt-in map tiles. Endpoint URLs remain deployment configuration. There is no
+automatic provider rotation or hidden failover. Wrangler's local
 state and credentials are ignored by Git. Do not commit credentials or copy a
 personal `.env` into the Worker environment.
 
@@ -87,3 +90,19 @@ source commit. Keep the Durable Object name and class binding stable to retain
 cache state. Do not delete the Worker or namespace as a rollback: deletion can
 remove persistent data. The cache is reconstructible from OSM and contains no
 submitted report notes.
+
+## Live verification receipt
+
+On 10 November 2026 the public HTTPS site passed unauthenticated HTTP checks
+for HTML/security headers, health, reports-disabled configuration, invalid
+coordinates, JSON API 404, offline assets and rejected report submission.
+Submitted place search for Sydney returned three suggestions. The Sydney
+nearby query at `-33.869,151.209` returned **569 mapped facilities**: 262 toilets
+and 307 water points, with `stale=false` and fetch time
+`2026-11-10T06:29:33.287Z`. This verifies source connectivity and the deployed
+query path, not physical access, water testing or exhaustive coverage.
+
+The initial default `overpass-api.de` deployment returned an upstream failure;
+`overpass.private.coffee` timed out. VK Maps returned live data and is the
+explicitly selected source. These were bounded deployment diagnostics, not
+quota bypass or an automatic rotation strategy.

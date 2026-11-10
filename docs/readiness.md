@@ -1,6 +1,6 @@
 # Readiness record
 
-Initial build: 10 November 2026. This is a working repository and pilot implementation, **not a launched public utility**. No production host, domain or service was deployed. The product's promise depends on data quality and operations as well as code.
+Initial build and public preview: 10 November 2026. The [experimental public pilot](https://open-amenities.saphid.workers.dev) is deployed on Cloudflare. This is **not a field-verified public utility**. The product's promise depends on data quality and operations as well as code.
 
 ## Implemented and locally checked
 
@@ -20,13 +20,15 @@ Detailed verification and independent-review receipts are appended below after t
 
 ## Before a public pilot
 
-- [ ] Choose a host, real HTTPS origin, operator contact, data/privacy route and explicit ownership for ongoing maintenance.
+- [x] Public HTTPS host, operator issue/contact route and in-app privacy information configured.
+- [ ] Establish ongoing maintenance and operational response commitments beyond the experimental preview.
 - [ ] Browser QA on current Safari/iOS, Chrome/Android and desktop Firefox: map activation/panning, GPS denial/timeouts, clipboard fallback, shared links, report dialog, offline service-worker reload, storage blocking and 200%/400% zoom.
 - [ ] Human VoiceOver / TalkBack / keyboard audit and measured contrast/reflow review. No accessibility conformance claim until these pass.
 - [ ] Field-check at least one dense urban and one sparse/regional area, with wheelchair users and people relying on inclusive facilities. Check entrances, overnight/seasonal/key access and water notices; document missing coverage.
 - [ ] Staff moderation, set response expectations and privacy/removal route, and only then enable reports. Resolve public contributor-data terms before redistributing report data.
 - [ ] Verify reverse-proxy identity/rate limits, log redaction, HTTPS/CSP, database volume permissions, backup/restore and retention for backups.
 - [ ] Exercise a deployed outage and offline recovery. Build/run Docker if it is the chosen deployment path.
+- [x] Live deployed source connectivity checked: Sydney place search and 569 mapped nearby facilities.
 - [ ] Verify provider capacity/terms with expected traffic. Public Nominatim limit is per entire app, not per user; this design must remain single-process against that endpoint.
 
 ## Before broad release
@@ -107,3 +109,17 @@ Final fresh review: provider `claudeAgent`, actual model `claude-opus-5-5`, effo
   No executed model was reported; no review findings were produced. Independent
   review was skipped due to unavailable capacity under the best-effort policy.
   No `CODING_STANDARDS.md` exists in this repository.
+
+### Public deployment receipt
+
+- Public URL: https://open-amenities.saphid.workers.dev (no account required).
+- Cloudflare Worker + one SQLite-backed Durable Object; reports disabled.
+- Unauthenticated HTTP smoke passed for home HTML/CSP, health, config, invalid
+  coordinates, JSON API 404, offline assets and disabled reports.
+- Live Nominatim search for Sydney: **3 suggestions**.
+- Live VK Maps Overpass Sydney response: **569 facilities** (262 toilets,
+  307 water points), `stale=false`, fetched `2026-11-10T06:29:33.287Z`.
+- The default and Private.coffee sources failed from the host; the explicitly
+  configured VK Maps instance succeeded. See [hosting](hosting.md).
+- Real-browser, assistive-technology and field verification remain outstanding.
+  Public availability does not close those readiness items.

@@ -2,7 +2,7 @@
 
 Find nearby public toilets and drinking water, with the access details and uncertainty visible. An account-free, open-source web app for a need everyone shares.
 
-**Status: working initial implementation; not a publicly deployed service or a field-verified directory.** The repository is public. Source code is MIT; OpenStreetMap data is separately licensed under ODbL. See [research](docs/research.md), [data and verification](docs/data-and-verification.md), and the [launch-readiness record](docs/readiness.md).
+**Status: public experimental pilot — [open the app](https://open-amenities.saphid.workers.dev).** The repository is public. This is not a field-verified directory. Source code is MIT; OpenStreetMap data is separately licensed under ODbL. See [research](docs/research.md), [data and verification](docs/data-and-verification.md), and the [launch-readiness record](docs/readiness.md).
 
 [View the initial interface](docs/design.md) (static render, not live-data proof).
 
