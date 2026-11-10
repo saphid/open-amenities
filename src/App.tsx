@@ -1,0 +1,111 @@
+import { lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { Accessibility,ArrowRight,ArrowUpRight,Baby,Check,ChevronDown,Clock,Download,Droplets,LocateFixed,MapPin,Search,SlidersHorizontal,Toilet,WifiOff,X } from 'lucide-react';
+import { activeEvidence,defaultFilters,distanceMeters,formatDistance,hasCaution,historicalWaterWarning,matches,pointSchema,safeDate,searchResultSchema,suggestionsSchema,type Facility,type Filters,type Point,type SearchResult } from '../shared/model';
+import { api } from './api';
+import { Details } from './components/Details';
+import { ReportDialog } from './components/ReportDialog';
+const AmenitiesMap=lazy(()=>import('./components/Map'));
+const INITIAL={lat:-33.8688,lon:151.2093};
+const SAVE_KEY='open-amenities:saved:v1';
+interface Config {reportsEnabled:boolean;tileUrl:string;tileAttribution:string}
+interface Saved {result:SearchResult;label:string}
+function savedArea():Saved|null{
+  try{const s=JSON.parse(localStorage.getItem(SAVE_KEY)??'null');const result=searchResultSchema.safeParse(s?.result);return result.success&&typeof s?.label==='string'?{result:result.data,label:s.label}:null;}catch{return null;}
+}
+function initialArea():{point:Point;place:string|null;shared:boolean}{
+  const params=new URLSearchParams(location.hash.slice(1));const parsed=pointSchema.safeParse({lat:params.get('lat')??NaN,lon:params.get('lon')??NaN});
+  return {point:parsed.success?parsed.data:INITIAL,place:params.get('place'),shared:parsed.success};
+}
+export default function App(){
+  const initial=useRef(initialArea());
+  const [center,setCenter]=useState<Point>(initial.current.point),[label,setLabel]=useState(initial.current.shared?'Shared area':'Sydney · starting area');
+  const [query,setQuery]=useState(''),[suggestions,setSuggestions]=useState<Array<Point&{name:string}>>([]);
+  const [result,setResult]=useState<SearchResult|null>(null),[loading,setLoading]=useState(true),[searching,setSearching]=useState(false),[locating,setLocating]=useState(false);
+  const [error,setError]=useState(''),[searchError,setSearchError]=useState(''),[locationNote,setLocationNote]=useState('');
+  const [filters,setFilters]=useState<Filters>(defaultFilters),[selected,setSelected]=useState<Facility|null>(null),[reporting,setReporting]=useState(false);
+  const [config,setConfig]=useState<Config|null>(null),[showMap,setShowMap]=useState(false),[mapFailed,setMapFailed]=useState(false);
+  const [offline,setOffline]=useState(!navigator.onLine),[saved,setSaved]=useState<Saved|null>(savedArea),[saveMessage,setSaveMessage]=useState('');
+  const request=useRef(0),searchRequest=useRef(0),controller=useRef<AbortController|null>(null),listHeading=useRef<HTMLHeadingElement>(null);
+  const load=useCallback(async(point:Point,area:string)=>{
+    const seq=++request.current;searchRequest.current++;setSearching(false);controller.current?.abort();const c=new AbortController();controller.current=c;
+    setLoading(true);setError('');setSelected(null);setSuggestions([]);setCenter(point);setLabel(area);setSaveMessage('');setMapFailed(false);
+    try{
+      const response=await api<unknown>(`/api/nearby?lat=${point.lat.toFixed(3)}&lon=${point.lon.toFixed(3)}`,{signal:c.signal});
+      if(seq!==request.current)return;
+      const parsed=searchResultSchema.safeParse(response);
+      if(!parsed.success)throw new Error('The server returned invalid map data. Please try again.');
+      const data=parsed.data;
+      setResult(data);setCenter(data.center);
+      const deepLink=initial.current.place;if(deepLink){setSelected(data.places.find(p=>p.id===deepLink)??null);initial.current.place=null;}
+    }catch(e){if(seq!==request.current||c.signal.aborted)return;setResult(null);setError(e instanceof Error?e.message:'Could not load this area. Try again.');}
+    finally{if(seq===request.current)setLoading(false);}
+  },[]);
+  useEffect(()=>{void api<Config>('/api/config').then(setConfig).catch(()=>setConfig(null));void load(initial.current.point,initial.current.shared?'Shared area':'Sydney · starting area');return()=>controller.current?.abort();},[load]);
+  useEffect(()=>{const on=()=>setOffline(false),off=()=>setOffline(true);addEventListener('online',on);addEventListener('offline',off);return()=>{removeEventListener('online',on);removeEventListener('offline',off);};},[]);
+  const visible=useMemo(()=>result?.places.filter(p=>matches(p,filters)).sort((a,b)=>distanceMeters(center,a)-distanceMeters(center,b))??[],[result,filters,center]);
+  const filterCount=Object.entries(filters).filter(([k,v])=>k!=='kind'&&Boolean(v)).length;
+  const toggle=(key:keyof Omit<Filters,'kind'>)=>{setFilters(f=>({...f,[key]:!f[key]}));setSelected(null);};
+  async function search(e:React.FormEvent){
+    e.preventDefault();setLocationNote('');const q=query.trim();if(q.length<2){setSearchError('Enter a city, suburb, or latitude, longitude.');return;}
+    const coords=q.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+    if(coords){const p=pointSchema.safeParse({lat:coords[1],lon:coords[2]});if(!p.success){setSearchError('Coordinates must be within 85° south/north and 180° east/west.');return;}setSearchError('');void load(p.data,`Area near ${q}`);return;}
+    const seq=++searchRequest.current;setSearching(true);setSearchError('');setSuggestions([]);
+    try{const response=await api<unknown>(`/api/search?q=${encodeURIComponent(q)}`);if(seq!==searchRequest.current)return;const parsed=suggestionsSchema.safeParse(response);if(!parsed.success)throw new Error('The server returned invalid search data. Try coordinates instead.');const data=parsed.data;setSuggestions(data.results);if(!data.results.length)setSearchError('No places found. Try a nearby town or coordinates.');}
+    catch(e){if(seq===searchRequest.current)setSearchError(e instanceof Error?e.message:'Search failed.');}finally{if(seq===searchRequest.current)setSearching(false);}
+  }
+  function locate(){
+    if(!navigator.geolocation){setSearchError('Location is unavailable in this browser. Search for a place or coordinates.');return;}
+    const locationRequest=request.current;const searchAtStart=searchRequest.current;setLocating(true);setSearchError('');setLocationNote('');
+    navigator.geolocation.getCurrentPosition(p=>{setLocating(false);if(locationRequest!==request.current||searchAtStart!==searchRequest.current)return;const point=pointSchema.safeParse({lat:p.coords.latitude,lon:p.coords.longitude});if(!point.success){setSearchError('This map supports locations between 85° south and 85° north.');return;}setLocationNote(p.coords.accuracy>1000?'Your location is approximate. Check the area shown.':`Device accuracy: about ${Math.max(10,Math.round(p.coords.accuracy/10)*10)} m. Distances use a rounded search center.`);void load(point.data,'Near your location');},e=>{setLocating(false);if(locationRequest!==request.current||searchAtStart!==searchRequest.current)return;setSearchError(e.code===1?'Location permission was declined. You can still search by place or coordinates.':'Could not get a location. Try a place name or coordinates.');},{enableHighAccuracy:false,timeout:10000,maximumAge:60000});
+  }
+  function select(p:Facility){setSelected(p);setReporting(false);}
+  function closeDetail(){const id=selected?.id;setSelected(null);requestAnimationFrame(()=>document.getElementById(`place-${id}`)?.focus());}
+  function save(){
+    if(!result)return;
+    try{const data={result,label};localStorage.setItem(SAVE_KEY,JSON.stringify(data));setSaved(data);setSaveMessage('Area saved on this device. Saved details can become outdated.');}
+    catch{setSaveMessage('This browser could not save the area. Storage may be full or blocked.');}
+  }
+  function restore(){if(!saved)return;request.current++;searchRequest.current++;setSearching(false);setSuggestions([]);controller.current?.abort();setLoading(false);setResult({...saved.result,stale:true});setCenter(saved.result.center);setLabel(`${saved.label} · saved`);setError('');setSelected(null);setSaveMessage('Showing your saved snapshot. Hours and conditions may have changed.');}
+  return <>
+    <a href="#results" className="skip-link" onClick={()=>listHeading.current?.focus()}>Skip to results</a>
+    <header className="site-header"><a className="brand" href="/" aria-label="Open Amenities home"><span className="brand-mark"><Droplets size={24}/></span><span>Open Amenities<span className="brand-sub">A little easier to be out.</span></span></a><a className="about-link" href="#about">How it works<ArrowUpRight size={15}/></a></header>
+    <main>
+      <section className="intro" aria-labelledby="page-title"><div><p className="eyebrow">For everyday necessities.</p><h1 id="page-title">A toilet. A refill.<br/><span>A little peace of mind.</span></h1><p className="intro-copy">Find public toilets and drinking water nearby.<br className="desktop-break"/> Know the access details before you go.</p></div><div className="intro-aside"><span className="availability"><span/>Free to search · no account</span><p>Open data. Honest details.<br/>Made for all of us.</p></div></section>
+      <section className="finder" aria-label="Find amenities">
+        <div className="search-row"><form className="search-form" onSubmit={search}><label className="sr-only" htmlFor="place-search">Search a city, suburb, or latitude, longitude</label><Search size={20} aria-hidden="true"/><input id="place-search" value={query} onChange={e=>{setQuery(e.target.value);setSuggestions([]);}} placeholder="City, suburb, or lat, lon" maxLength={120} autoComplete="off"/><button type="submit" disabled={searching}>{searching?'Searching…':'Find places'}<ArrowRight size={16}/></button></form><button className="location-button" onClick={locate} disabled={locating}><LocateFixed size={18}/>{locating?'Locating…':'Use my location'}</button></div>
+        <p className="search-privacy small">Location is optional. Searches send an approximate area to our map source. Enable the map to load third-party tiles.</p>
+        {searchError&&<p className="error" role="alert">{searchError}</p>}{locationNote&&<p className="small muted" role="status">{locationNote}</p>}
+        {suggestions.length>0&&<div className="suggestions"><p className="small muted">Choose an area</p><ul>{suggestions.map((p,i)=><li key={i}><button onClick={()=>{searchRequest.current++;void load(p,p.name.split(',').slice(0,2).join(','));setQuery('');setLocationNote('');}}><MapPin size={17}/><span>{p.name}</span><ArrowRight size={16}/></button></li>)}</ul></div>}
+        <div className="filter-row"><div className="kind-filters" role="group" aria-label="Amenity type">{(['all','toilet','water'] as const).map(k=><button key={k} className={filters.kind===k?'active':''} aria-pressed={filters.kind===k} onClick={()=>{setFilters(f=>({...f,kind:k}));setSelected(null);}}>{k==='toilet'?<Toilet size={17}/>:k==='water'?<Droplets size={17}/>:null}{k==='all'?'Everything':k==='toilet'?'Toilets':'Drinking water'}</button>)}</div><span className="filter-divider"/>
+          <button className={`filter-chip ${filters.free?'active':''}`} aria-pressed={filters.free} onClick={()=>toggle('free')}>No fee mapped</button><button className={`filter-chip ${filters.wheelchair?'active':''}`} aria-pressed={filters.wheelchair} onClick={()=>toggle('wheelchair')}><Accessibility size={16}/>Wheelchair</button>
+          <details className="more-filters"><summary><SlidersHorizontal size={16}/>More{filterCount?` (${filterCount})`:''}<ChevronDown size={14}/></summary><div className="filter-popover"><p className="small">Filters require a recorded yes. Unknown details will not match.</p>{([{key:'always',label:'24-hour access mapped',Icon:Clock},{key:'changing',label:'Baby changing mapped',Icon:Baby},{key:'neutral',label:'Gender-neutral mapped',Icon:Check},{key:'bottle',label:'Bottle filling mapped',Icon:Droplets},{key:'restricted',label:'Include customer, key & permit access',Icon:KeyIcon}] as const).map(({key,label,Icon})=><label key={key}><input type="checkbox" checked={filters[key]} onChange={()=>toggle(key)}/><Icon size={16}/>{label}</label>)}<button className="text-button" onClick={()=>setFilters(defaultFilters)}>Reset all filters</button></div></details>
+        </div>
+      </section>
+      {offline&&<p className="status-banner" role="status"><WifiOff size={18}/>You appear to be offline. {saved?<button onClick={restore}>Open saved area</button>:'Save an area when connected to keep a text list on this device.'}</p>}
+      <section className="workspace" aria-label="Search results and map">
+        <div className="results-pane" id="results">
+          <div className="results-header"><div><p className="eyebrow area-name"><MapPin size={13}/>{label}</p><h2 ref={listHeading} tabIndex={-1}>{loading?'Finding the essentials…':`${visible.length} nearby ${visible.length===1?'place':'places'}`}</h2></div><span className="radius-label">3 km radius</span></div>
+          {!selected&&<div className="results-meta"><span>Nearest first · straight-line distances</span><button onClick={save} disabled={!result||loading} aria-label="Save this area on this device"><Download size={15}/>Save area</button></div>}
+          {saveMessage&&<p className="small notice" role="status">{saveMessage}</p>}
+          {error&&<div className="empty-state error-state" role="alert"><WifiOff size={28}/><h3>We couldn’t load this area.</h3><p>{error}</p><button className="secondary" onClick={()=>void load(center,label)}>Try again</button>{saved&&<button className="text-button" onClick={restore}>Open saved area</button>}</div>}
+          {loading?<div className="loading-state" role="status"><span className="loading-dot"/>Looking up mapped toilets and water points…</div>:selected?<Details place={selected} evidence={result?.evidence[selected.id]??[]} onClose={closeDetail} onReport={()=>setReporting(true)} reportsEnabled={config?.reportsEnabled??false} stale={result?.stale??false}/>:<>
+            {result?.stale&&<p className="notice"><Clock size={16}/>Saved or cached results from {safeDate(result.fetchedAt)}. Conditions may have changed.</p>}
+            {result&&visible.length===0&&<div className="empty-state"><MapPin size={28}/><h3>No matching places mapped here.</h3><p>This may mean missing data or restrictive filters. It does not mean there are no facilities nearby.</p><button className="secondary" onClick={()=>setFilters(defaultFilters)}>Clear filters</button><p className="small">Try another area, or check an <a href="#alternatives">established local map</a>.</p></div>}
+            <ol className="place-list">{visible.map(p=><li key={p.id}><button id={`place-${p.id}`} className="place-card" onClick={()=>select(p)}><span className={`place-symbol ${p.kind}`}>{p.kind==='toilet'?<Toilet size={22}/>:<Droplets size={22}/>}</span><span className="place-content"><span className="place-title">{p.name}</span><span className="place-summary">{p.fee==='no'?'No fee mapped':p.fee==='yes'?'Fee applies':'Fee unknown'} · {p.aroundTheClock?'24/7 mapped':p.hours?'Hours recorded':'Hours unknown'}</span><span className="place-tags"><span>{p.access==='public'?'Public access mapped':p.access==='restricted'?'Restricted access':'Access not confirmed'}</span>{p.wheelchair==='yes'&&<span><Accessibility size={13}/>Wheelchair mapped</span>}{hasCaution(result?.evidence[p.id])&&<span className="caution-tag">{activeEvidence(result?.evidence[p.id]).some(e=>e.type==='not-drinkable')?'Do not drink: recent report':'Recent caution report'}</span>}{historicalWaterWarning(result?.evidence[p.id],result?.stale)&&!activeEvidence(result?.evidence[p.id]).some(e=>e.type==='not-drinkable')&&<span className="caution-tag">Past unsafe-water report: current status unknown</span>}</span></span><span className="place-distance">{formatDistance(distanceMeters(center,p))}<ArrowUpRight size={17}/></span></button></li>)}</ol>
+          </>}
+          {result&&!loading&&<p className="source-footnote">Data fetched {safeDate(result.fetchedAt)} · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors · ODbL</a><br/>Mapped does not mean recently verified. Unknown access remains visible; private sites are excluded.</p>}
+        </div>
+        <aside className="map-pane" aria-label="Map view">
+          {showMap&&config&&!mapFailed?<><button className="hide-map" onClick={()=>setShowMap(false)}><X size={15}/>Hide map</button><MapBoundary onError={()=>setMapFailed(true)}><Suspense fallback={<div className="map-placeholder">Loading map…</div>}><AmenitiesMap places={visible} center={center} selected={selected?.id??null} onSelect={select} onSearch={p=>{setLocationNote('');void load(p,'Selected map area');}} tileUrl={config.tileUrl} attribution={config.tileAttribution}/></Suspense></MapBoundary></>:<div className="map-placeholder"><div className="map-grid" aria-hidden="true"><span className="illustrated-pin one"><Toilet size={22}/></span><span className="illustrated-pin two"><Droplets size={22}/></span><span className="illustrated-pin three"><Toilet size={22}/></span></div><div className="map-prompt"><span className="eyebrow">A clearer view of nearby</span><h2>Your essentials,<br/>on the map.</h2><p>{mapFailed?'The map could not load. Use the full results list or try again.':'The list works on its own. Load a map when you want to see the area.'}</p><button className="primary" onClick={()=>{setShowMap(true);setMapFailed(false);}} disabled={!config}><MapPin size={17}/>{mapFailed?'Retry map':'Show map'}</button><p className="small muted">Uses third-party map tiles. They receive your IP address and the area viewed.</p></div><span className="illustration-label">Illustration · not actual locations</span></div>}
+        </aside>
+      </section>
+      <section className="trust-strip" aria-label="Our commitments"><div><Accessibility size={22}/><span><strong>A list for every map.</strong><span>Keyboard friendly. Details in plain text.</span></span></div><div><Check size={22}/><span><strong>Known, unknown, and changing.</strong><span>See the source, dates, and access conditions.</span></span></div><div><Droplets size={22}/><span><strong>Useful without signing up.</strong><span>No ads, accounts, or analytics.</span></span></div></section>
+      <section id="about" className="about-section"><div><p className="eyebrow">A public starting point</p><h2>Everyone needs<br/>the essentials.</h2><p>Open Amenities makes public map data easier to use. Coverage varies, and facilities can be closed, locked, seasonal, or missing from the map.</p></div><div className="about-details"><details><summary>What does “accessible” mean here?</summary><p>Public access and disability access are separate. A wheelchair tag is one recorded attribute, not a route or building audit. Unknown details stay unknown. Filters only include a facility when the requested attribute is mapped. We target WCAG 2.2 AA; a human assistive-technology audit is still needed.</p></details><details><summary>How are places verified?</summary><p>Each place links to its OpenStreetMap record. Source check dates, edit dates, and fetch dates are kept separate. If enabled by the operator, anonymous reports enter a private moderation queue. Only reviewed report types and visit dates are shown, for 14 days. A “working” report never proves water quality or removes a conflicting warning.</p><p>Missing a place? <a href="https://www.openstreetmap.org/note/new" target="_blank" rel="noreferrer">Leave a note on OpenStreetMap</a>. Describe public facilities without private codes or personal details.</p></details><details><summary>Privacy, saved areas, and offline use</summary><p>GPS is requested only when you press “Use my location”. Coordinates are rounded to about 100 metres before reaching this server; Overpass receives a coarser shared grid center. Map tiles go directly to the tile provider. Place-name searches go through the server to the configured geocoder. Search caches last up to seven days. We do not keep location histories, accounts, analytics, or report IP addresses; the host may keep infrastructure logs.</p><p>“Save area” stores one snapshot in this browser, including the area and source dates. On a production install, a small offline page can show this list after losing connectivity. The basemap is not saved. Shared devices keep this saved area until you remove it.</p>{saved&&<div className="saved-actions"><button className="secondary" onClick={restore}>Open saved area</button><button className="text-button" onClick={()=>{try{localStorage.removeItem(SAVE_KEY);setSaved(null);setSaveMessage('Saved area removed.');}catch{setSaveMessage('Could not clear saved storage. Use browser site settings.');}}}>Remove saved area</button></div>}</details><details id="alternatives"><summary>Other useful maps & data</summary><p>For richer regional or community-specific details, try the <a href="https://toiletmap.gov.au/" target="_blank" rel="noreferrer">Australian National Public Toilet Map</a>, <a href="https://www.refugerestrooms.org/" target="_blank" rel="noreferrer">REFUGE Restrooms</a>, <a href="https://wheelmap.org/" target="_blank" rel="noreferrer">Wheelmap</a>, <a href="https://www.refill.org.uk/" target="_blank" rel="noreferrer">Refill Return</a>, or <a href="https://toilet.zone/" target="_blank" rel="noreferrer">Toilet Zone</a>. Their datasets are not imported here.</p></details></div></section>
+    </main>
+    <footer className="site-footer"><span>Open Amenities <span className="muted">· An open-source starting point</span></span><a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer">Improve the map<ArrowUpRight size={14}/></a></footer>
+    {selected&&reporting&&<ReportDialog place={selected} onClose={()=>setReporting(false)}/>}
+  </>;
+}
+function KeyIcon({size=16}:{size?:number}){return <MapPin size={size}/>;}
+import { Component,type ReactNode } from 'react';
+class MapBoundary extends Component<{children:ReactNode;onError:()=>void},{failed:boolean}>{state={failed:false};static getDerivedStateFromError(){return {failed:true};}componentDidCatch(){this.props.onError();}render(){return this.state.failed?<p className="notice">Map unavailable. Use the results list.</p>:this.props.children;}}
