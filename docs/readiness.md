@@ -86,3 +86,24 @@ Latest verification: **61 tests across seven files**, TypeScript/Vite build and 
 Final fresh review: provider `claudeAgent`, actual model `claude-opus-5-5`, effort `high`, final status **completed**. Task ID: `node:delegated-task:command%3Amcp%3A99fcf49b-272c-4962-b534-4f19598e6232%3Adelegate-task%3A01031227-6722-4d35-b4b3-26ae99d1e137`.
 
 **No actionable findings** in the exact corrected target: `src/api.ts`, new schemas in `shared/model.ts`, response/restore validation and caution tags in `src/App.tsx`, caution notices in `src/components/Details.tsx`, and related tests. The independent reviewer also ran 61 tests across seven files and TypeScript successfully. The complete initial code scope had been reviewed earlier; the fresh passes verified subsequent corrections. Production build and server smoke were verified by the parent. Public live-provider connectivity, real-browser/assistive-technology behavior and field accuracy remain unverified as recorded above.
+
+## Cloudflare hosting adapter — 10 November 2026
+
+- Public, read-only hosting adapter added without replacing the Node server.
+  See [hosting decision and runbook](hosting.md).
+- `npm run check`: **68 tests passed** across eight files; both TypeScript
+  targets and Vite production build passed.
+- `npm run check:worker`: Wrangler bundle/asset dry-run passed.
+- `npm run test:smoke`: Node production smoke passed.
+- Actual local Wrangler runtime: HTML/security headers, health, configuration,
+  malformed-coordinate validation, API 404, offline assets and disabled report
+  submission passed. This was an HTTP runtime check, not browser automation.
+- `npm audit --audit-level=high`: **0 vulnerabilities** including development
+  dependencies at the time checked.
+- Independent review attempted through T3 task
+  `node:delegated-task:command%3Amcp%3A99fcf49b-272c-4962-b534-4f19598e6232%3Adelegate-task%3Aed0e5a3d-1d3c-47d8-b91e-17a64d303497`.
+  Requested provider `claudeAgent`, model `claude-opus-5-5`, effort `high`.
+  Final status **failed**: “Claude API rate limit reached. Try again later.”
+  No executed model was reported; no review findings were produced. Independent
+  review was skipped due to unavailable capacity under the best-effort policy.
+  No `CODING_STANDARDS.md` exists in this repository.

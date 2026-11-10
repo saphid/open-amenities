@@ -14,7 +14,7 @@ Browser → same-origin Node/Express API → configurable Overpass/Nominatim end
 6. Leave `REPORTS_ENABLED=false` until a named moderator can operate the queue and handle removal/privacy complaints. Verify service-worker installation and a saved-area reload while disconnected in each supported browser.
 7. Use a dedicated/contracted geocoder and tiles plus regional extracts before a broad release. Do not hide increasing traffic by rotating public endpoint IPs.
 
-No deployment or DNS change is part of the repository build. Docker configuration is supplied for reproducibility; a container build and hosting integration still need verification.
+For the Cloudflare read-only pilot, follow [hosting](hosting.md); it does not run this Node process or moderation CLI. Docker configuration is supplied for reproducibility; a container build and hosting integration still need verification.
 
 ## Moderation
 

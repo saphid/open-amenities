@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "open-amenities",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-10",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "durable_objects": {"bindings": [{"name": "AMENITIES", "class_name": "Amenities"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["Amenities"]}],
+  "observability": {"enabled": false},
+  "vars": {
+    "OVERPASS_URL": "https://overpass-api.de/api/interpreter",
+    "GEOCODER_URL": "https://nominatim.openstreetmap.org/search",
+    "UPSTREAM_USER_AGENT": "OpenAmenities/0.1 (https://github.com/saphid/open-amenities; contact: https://github.com/saphid/open-amenities/issues)"
+  }
+}

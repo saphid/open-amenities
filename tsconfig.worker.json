@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {"lib": ["ES2023"], "types": ["@cloudflare/workers-types"]},
+  "include": ["worker", "shared", "server/provider.ts", "server/normalize.ts"]
+}

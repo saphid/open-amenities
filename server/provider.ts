@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Point, SearchResult, Facility } from '../shared/model.ts';
 import { distanceMeters } from '../shared/model.ts';
 import { normalize, type OsmElement } from './normalize.ts';
-import { Store } from './store.ts';
+import type { SourceStore } from '../shared/source-store.ts';
 export class ProviderError extends Error { constructor(message:string, public status=503){super(message);} }
 export interface PlaceSuggestion extends Point { name:string }
 export interface Provider { nearby(point:Point):Promise<SearchResult>; search(query:string):Promise<PlaceSuggestion[]> }
@@ -13,7 +13,7 @@ export class OsmProvider implements Provider {
   private overpassBusy=false;
   private geocodeBusy=false;
   private nextGeocode=0;
-  constructor(private store:Store, private config:{overpass:string;geocoder:string;userAgent:string;geocodingEnabled:boolean}){}
+  constructor(private store:SourceStore, private config:{overpass:string;geocoder:string;userAgent:string;geocodingEnabled:boolean;claimGeocode?:()=>boolean}){}
   async nearby(point:Point):Promise<SearchResult> {
     // Share a ~1km grid-cell cache. Query 4km to contain every 3km search in the cell.
     // Results and distances are projected back to the caller's rounded (~100m) center.
@@ -57,7 +57,7 @@ export class OsmProvider implements Provider {
     const cached=this.store.cached<PlaceSuggestion[]>(key,86400000);
     if(cached)return cached.value;
     // App-wide limit, single process. Reject bursts rather than accumulating a queue.
-    if(this.geocodeBusy || Date.now()<this.nextGeocode)throw new ProviderError('Please wait a moment before searching again.',429);
+    if(this.geocodeBusy || Date.now()<this.nextGeocode || (this.config.claimGeocode && !this.config.claimGeocode()))throw new ProviderError('Please wait a moment before searching again.',429);
     this.geocodeBusy=true;this.nextGeocode=Date.now()+1100;
     try {
       const url=new URL(this.config.geocoder);url.searchParams.set('q',query);url.searchParams.set('format','jsonv2');url.searchParams.set('limit','5');
@@ -75,6 +75,7 @@ export class OsmProvider implements Provider {
     const reader=response.body?.getReader();if(!reader)throw new ProviderError('The map source returned no data.');
     let size=0;const chunks:Uint8Array[]=[];
     while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>8_000_000){await reader.cancel();throw new ProviderError('The source response was too large.');}chunks.push(value);}
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
+    return JSON.parse(new TextDecoder().decode(bytes));
   }
 }

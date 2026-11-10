@@ -57,7 +57,11 @@ npm run moderate -- prune
 
 Review types and visit dates are public for **14 days from the observation date**, not the approval date. Free-text notes stay private and are removed after 90 days, along with report audit rows. Moderation decisions are transactionally recorded. Reports older than 90 days, future dates, unknown IDs, and water-safety reports on toilets are rejected. There is no automatic modification of OSM, and no published report claims an official water test. Follow the [moderation runbook](docs/operations.md).
 
-## Deploy when ready
+## Public hosting
+
+A [Cloudflare hosting adapter and comparison](docs/hosting.md) are included for a free-tier-compatible, read-only public pilot. It serves the same interface with a persistent source cache and reports disabled. The Node server below remains the option for running moderation on a private persistent volume.
+
+## Self-host the Node server
 
 ```sh
 npm run build
@@ -74,6 +78,7 @@ One Node process serves the built frontend and same-origin JSON API. Set `PUBLIC
 | `src/` | React interface, lazy Leaflet map, reports and details |
 | `shared/` | Public model, input schemas, strict filters and evidence rules |
 | `server/` | Express API, OSM normalization/proxy, SQLite cache and moderation |
+| `worker/`, `wrangler.jsonc` | Cloudflare public read-only API and durable source cache |
 | `scripts/moderate.ts` | Host-only moderation command |
 | `public/offline.*`, `public/sw.js` | Small independent offline list; no tile caching |
 | `tests/` | Domain, API, provider and UI checks |
