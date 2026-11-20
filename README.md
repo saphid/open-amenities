@@ -1,10 +1,12 @@
 # Open Amenities
 
-Find nearby public toilets and drinking water, with the access details and uncertainty visible. An account-free, open-source web app for a need everyone shares.
+You can just build things. Even *shit* things.
 
-**Status: public experimental pilot — [open the app](https://open-amenities.saphid.workers.dev).** The repository is public. This is not a field-verified directory. Source code is MIT; OpenStreetMap data is separately licensed under ODbL. See [research](docs/research.md), [data and verification](docs/data-and-verification.md), and the [launch-readiness record](docs/readiness.md).
+I wanted a fast, no-BS way to find a public toilet or drinking fountain nearby without signing up, dodging ads, or getting told a locked bathroom is "probably open." So I built one on top of OpenStreetMap data.
 
-[View the initial interface](docs/design.md) (static render, not live-data proof).
+**Live pilot:** [open-amenities.saphid.workers.dev](https://open-amenities.saphid.workers.dev) — experimental, backed by OSM data rather than a field-verified directory. Code is MIT; OpenStreetMap data is ODbL.
+
+More background if you're curious: [research](docs/research.md), [data and verification](docs/data-and-verification.md), [readiness notes](docs/readiness.md), and the [early static mockup](docs/design.md).
 
 ## Run locally
 
